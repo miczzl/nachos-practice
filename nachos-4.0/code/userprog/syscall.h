@@ -29,6 +29,7 @@
 #define SC_Close	8
 #define SC_ThreadFork	9
 #define SC_ThreadYield	10
+#define SC_PrintInt 11
 
 #ifndef IN_ASM
 
@@ -125,6 +126,9 @@ void ThreadFork(void (*func)());
  * or not. 
  */
 void ThreadYield();		
+
+/* Print an integer to the console. */
+void PrintInt(int number);
 
 #endif /* IN_ASM */
 

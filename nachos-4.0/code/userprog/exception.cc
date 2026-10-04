@@ -23,6 +23,7 @@
 
 #include "copyright.h"
 #include "main.h"
+#include "synchconsole.h"
 #include "syscall.h"
 
 //----------------------------------------------------------------------
@@ -60,6 +61,44 @@ ExceptionHandler(ExceptionType which)
 		    DEBUG(dbgAddr, "Shutdown, initiated by user program.\n");
    		    kernel->interrupt->Halt();
 		    break;
+		case SC_PrintInt: {
+			int number = kernel->machine->ReadRegister(4);
+			// negative number handling 
+			// (because the corner case of INT_MIN can't transform to positive number directly)
+			bool negative = number < 0;
+			unsigned int value = negative
+				? 0u - static_cast<unsigned int>(number)
+				: static_cast<unsigned int>(number);
+
+			// convert the number to string
+			char digits[10];
+			int count = 0;
+			while (value > 0) {
+				// NOTE: elements are stored in reverse order
+				digits[count++] = '0' + (value % 10);
+				value /= 10;
+			}
+			if (count == 0) {
+				digits[count++] = '0';
+			}
+
+			// print the string to console
+			SynchConsoleOutput output(NULL);
+			if (negative) {
+				output.PutChar('-');
+			}
+			while (count > 0) {
+				output.PutChar(digits[--count]);
+			}
+			output.PutChar('\n');
+			
+			// update the program counter
+			int nextPC = kernel->machine->ReadRegister(NextPCReg);
+			kernel->machine->WriteRegister(PrevPCReg, kernel->machine->ReadRegister(PCReg));
+			kernel->machine->WriteRegister(PCReg, nextPC);
+			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
+			return;
+		}
 		default:
 		    cerr << "Unexpected system call " << type << "\n";
  		    break;
