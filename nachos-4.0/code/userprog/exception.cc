@@ -80,11 +80,11 @@ ExceptionHandler(ExceptionType which)
 
     switch (which) {
 	case SyscallException:
-	    switch(type) {
+		switch(type) {
 		case SC_Halt:
-		    DEBUG(dbgAddr, "Shutdown, initiated by user program.\n");
-   		    kernel->interrupt->Halt();
-		    break;
+			DEBUG(dbgAddr, "Shutdown, initiated by user program.\n");
+			kernel->interrupt->Halt();
+			break;
 		case SC_PrintInt: {
 			int number = kernel->machine->ReadRegister(4);
 			// negative number handling 
@@ -153,14 +153,62 @@ ExceptionHandler(ExceptionType which)
 			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
 			return;
 		}
+		case SC_Write: {
+			int userAddress = kernel->machine->ReadRegister(4); // buffer address
+			int size = kernel->machine->ReadRegister(5);
+			int id = kernel->machine->ReadRegister(6);
+			int written = -1; // invalid or negative size
+
+			if (size >= 0) {
+				if (id == ConsoleOutput) {
+					SynchConsoleOutput output(NULL);
+					written = 0;
+
+					for (int i = 0; i < size; i++) {
+						int value;
+						if (!kernel->machine->ReadUserMemory(
+								userAddress + i, 1, &value))
+							break;
+
+						output.PutChar((char)value);
+						written++;
+					}
+				} else if (id >= 2 && id < MaxOpenFiles && openFiles[id] != NULL) {
+					written = 0;
+					for (int i = 0; i < size; i++) {
+						int value;
+						if (!kernel->machine->ReadUserMemory(
+								userAddress + i, 1, &value))
+							break;
+						
+						char byte = (char)value;
+						int count = openFiles[id]->Write(&byte, 1);
+						if (count <= 0)
+							break;
+
+						written += count;
+					}
+				}
+			} 
+
+			// return the number of bytes written in r2
+			kernel->machine->WriteRegister(2, written);
+			// update the program counter
+			int pc = kernel->machine->ReadRegister(PCReg);
+			int nextPC = kernel->machine->ReadRegister(NextPCReg);
+			kernel->machine->WriteRegister(PrevPCReg, pc);
+			kernel->machine->WriteRegister(PCReg, nextPC);
+			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
+			return;
+		}
 		default:
-		    cerr << "Unexpected system call " << type << "\n";
- 		    break;
-	    }
-	    break;
+			cerr << "Unexpected system call " << type << "\n";
+			break;
+		}
+		break;
 	default:
-	    cerr << "Unexpected user mode exception" << which << "\n";
-	    break;
+		cerr << "Unexpected user mode exception" << which << "\n";
+		break;
     }
     ASSERTNOTREACHED();
 }
