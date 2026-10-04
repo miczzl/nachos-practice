@@ -201,6 +201,51 @@ ExceptionHandler(ExceptionType which)
 			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
 			return;
 		}
+		case SC_Read: {
+			int userAddress = kernel->machine->ReadRegister(4); // buffer address
+			int size = kernel->machine->ReadRegister(5);
+			int id = kernel->machine->ReadRegister(6);
+			int read = -1; // invalid or negative size
+
+			if (size >= 0) {
+				if (id == ConsoleInput) {
+					read = 0;
+					if (size > 0 && kernel->consoleInput == NULL) {
+						kernel->consoleInput = new SynchConsoleInput(NULL);
+					}
+					for (int i = 0; i < size; i++) {
+						char ch = kernel->consoleInput->GetChar();
+						if (!kernel->machine->WriteUserMemory(
+								userAddress + i, 1, (unsigned char)ch))
+							break;
+						read++;
+					}
+				} else if (id >= 2 && id < MaxOpenFiles && openFiles[id] != NULL) {
+					read = 0;
+					for (int i = 0; i < size; i++) {
+						char byte;
+						int count = openFiles[id]->Read(&byte, 1);
+						if (count <= 0)
+							break;
+
+						if (!kernel->machine->WriteUserMemory(userAddress + i, 1, (int)byte))
+							break;
+
+						read++;
+					}
+				}
+			}
+
+			// return the number of bytes read in r2
+			kernel->machine->WriteRegister(2, read);
+			// update the program counter
+			int pc = kernel->machine->ReadRegister(PCReg);
+			int nextPC = kernel->machine->ReadRegister(NextPCReg);
+			kernel->machine->WriteRegister(PrevPCReg, pc);
+			kernel->machine->WriteRegister(PCReg, nextPC);
+			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
+			return;
+		}
 		default:
 			cerr << "Unexpected system call " << type << "\n";
 			break;

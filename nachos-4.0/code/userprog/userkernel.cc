@@ -21,6 +21,7 @@ UserProgKernel::UserProgKernel(int argc, char **argv)
 {
     debugUserProg = FALSE;
     userProgram = NULL;
+    consoleInput = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-s") == 0) {
 	    debugUserProg = TRUE;
@@ -55,6 +56,7 @@ UserProgKernel::Initialize()
 
 UserProgKernel::~UserProgKernel()
 {
+    delete consoleInput;
     delete fileSystem;
     delete machine;
 }

@@ -209,3 +209,20 @@ Machine::WriteRegister(int num, int value)
     registers[num] = value;
 }
 
+//----------------------------------------------------------------------
+// Machine::ReadUserMemory/WriteUserMemory
+//   	Fetch or write the contents of a user program memory.
+//----------------------------------------------------------------------
+
+bool
+Machine::ReadUserMemory(int addr, int size, int* value)
+{
+    return ReadMem(addr, size, value);
+}  
+
+bool
+Machine::WriteUserMemory(int addr, int size, int value)
+{
+    return WriteMem(addr, size, value); 
+}
+

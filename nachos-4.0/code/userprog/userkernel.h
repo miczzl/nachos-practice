@@ -16,6 +16,8 @@
 #include "filesys.h"
 #include "machine.h"
 
+class SynchConsoleInput;
+
 class UserProgKernel : public ThreadedKernel {
   public:
     UserProgKernel(int argc, char **argv);
@@ -31,6 +33,7 @@ class UserProgKernel : public ThreadedKernel {
 // These are public for notational convenience.
     Machine *machine;
     FileSystem *fileSystem;
+    SynchConsoleInput *consoleInput;
 
   private:
     bool debugUserProg;		// single step user program
