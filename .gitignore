@@ -1,1 +1,16 @@
-.vscode
+.vscode/
+
+# NachOS build output
+*.o
+*.coff
+nachos-4.0/code/threads/nachos
+nachos-4.0/code/userprog/nachos
+nachos-4.0/code/*/swtch.s
+nachos-4.0/code/*/core
+nachos-4.0/code/*/core.*
+
+# Local backups and downloaded setup archives/toolchain
+*.bak
+nachos-4.0.tar
+mips-x86.linux-xgcc.tar.gz
+mips-x86.linux-xgcc/

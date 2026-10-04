@@ -10,6 +10,7 @@ RUN dpkg --add-architecture i386 \
         wget \
         patch \
         csh \
+        ed \
         file \
         gcc-multilib \
         g++-multilib \
