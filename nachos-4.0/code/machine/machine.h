@@ -99,6 +99,11 @@ class Machine {
     void WriteRegister(int num, int value);
 				// store a value into a CPU register
 
+    // Let syscall handlers read bytes from a user's virtual address space.
+    bool ReadUserMemory(int addr, int size, int *value) {
+	return ReadMem(addr, size, value);
+    }
+
 // Data structures accessible to the Nachos kernel -- main memory and the
 // page table/TLB.
 //

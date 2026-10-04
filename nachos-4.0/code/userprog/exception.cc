@@ -26,6 +26,30 @@
 #include "synchconsole.h"
 #include "syscall.h"
 
+// 0 and 1 are reserved for console input and output.
+static const int MaxOpenFiles = 32;
+static OpenFile *openFiles[MaxOpenFiles] = {NULL};
+
+// A helper function to copy a string from user space to kernel space.
+static bool
+CopyUserString(int userAddress, char *destination, int maxLength)
+{
+    for (int i = 0; i < maxLength; i++) {
+        int character;
+
+        if (!kernel->machine->ReadUserMemory(userAddress + i, 1, &character)) {
+            return false;
+        }
+
+        destination[i] = (char)character;
+        if (character == '\0') {
+            return true;
+        }
+    }
+
+    return false;  // 在長度限制內沒有找到字串結尾
+}
+
 //----------------------------------------------------------------------
 // ExceptionHandler
 // 	Entry point into the Nachos kernel.  Called when a user program
@@ -95,6 +119,36 @@ ExceptionHandler(ExceptionType which)
 			// update the program counter
 			int nextPC = kernel->machine->ReadRegister(NextPCReg);
 			kernel->machine->WriteRegister(PrevPCReg, kernel->machine->ReadRegister(PCReg));
+			kernel->machine->WriteRegister(PCReg, nextPC);
+			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
+			return;
+		}
+		case SC_Open: {
+			int address = kernel->machine->ReadRegister(4);
+			char filename[256];
+			int result = -1;
+
+			if (CopyUserString(address, filename, sizeof(filename))) {
+				OpenFile *openedFile = kernel->fileSystem->Open(filename);
+				if (openedFile != NULL) {
+					for (int id = 2; id < MaxOpenFiles; id++) {
+						if (openFiles[id] == NULL) {
+							openFiles[id] = openedFile;
+							result = id;
+							break;
+						}
+					}
+					// No free slot: close the file instead of leaking it.
+					if (result == -1)
+						delete openedFile;
+				}
+			}
+			// return the result (file descriptor or -1) in r2
+			kernel->machine->WriteRegister(2, result);
+			// update the program counter
+			int pc = kernel->machine->ReadRegister(PCReg);
+			int nextPC = kernel->machine->ReadRegister(NextPCReg);
+			kernel->machine->WriteRegister(PrevPCReg, pc);
 			kernel->machine->WriteRegister(PCReg, nextPC);
 			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
 			return;
