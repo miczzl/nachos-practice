@@ -34,6 +34,7 @@ class UserProgKernel : public ThreadedKernel {
 
   private:
     bool debugUserProg;		// single step user program
+    char *userProgram;		// optional program selected with -e
 };
 
 #endif

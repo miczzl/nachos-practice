@@ -11,8 +11,8 @@
 
 include ../Makefile.dep
 CC=gcc
-CFLAGS=-I../lib -I../threads $(HOST)
-LD=gcc
+CFLAGS=-m32 -I../lib -I../threads $(HOST)
+LD=gcc -m32
 
 all: coff2noff $(DISASM)
 

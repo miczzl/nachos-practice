@@ -20,11 +20,15 @@ UserProgKernel::UserProgKernel(int argc, char **argv)
 		: ThreadedKernel(argc, argv)
 {
     debugUserProg = FALSE;
+    userProgram = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-s") == 0) {
 	    debugUserProg = TRUE;
-        } else if (strcmp(argv[i], "-u") == 0) {
-            cout << "Partial usage: nachos [-s]\n";
+	} else if (strcmp(argv[i], "-e") == 0) {
+	    ASSERT(i + 1 < argc);
+	    userProgram = argv[++i];
+	} else if (strcmp(argv[i], "-u") == 0) {
+            cout << "Partial usage: nachos [-s] [-e userProgram]\n";
 	}
     }
 }
@@ -57,15 +61,15 @@ UserProgKernel::~UserProgKernel()
 
 //----------------------------------------------------------------------
 // UserProgKernel::Run
-// 	Run the Nachos kernel.  For now, just run the "halt" program. 
+// 	Run the selected user program, or "halt" by default.
 //----------------------------------------------------------------------
 
 void
 UserProgKernel::Run()
 {
-    AddrSpace *halt = new AddrSpace();
+    AddrSpace *space = new AddrSpace();
 
-    halt->Execute("../test/halt");
+    space->Execute(userProgram != NULL ? userProgram : (char *)"../test/halt");
 
     ThreadedKernel::Run();
 }
@@ -78,6 +82,10 @@ UserProgKernel::Run()
 void
 UserProgKernel::SelfTest() {
     char ch;
+
+    // Run a selected test program directly, without the interactive self test.
+    if (userProgram != NULL)
+	return;
 
     ThreadedKernel::SelfTest();
 

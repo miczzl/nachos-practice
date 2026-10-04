@@ -3,8 +3,14 @@
 # NachOS build output
 *.o
 *.coff
+*.noff
 nachos-4.0/code/threads/nachos
 nachos-4.0/code/userprog/nachos
+nachos-4.0/code/bin/coff2noff
+nachos-4.0/code/test/printint
+nachos-4.0/code/test/shell
+nachos-4.0/code/test/matmult
+nachos-4.0/code/test/sort
 nachos-4.0/code/*/swtch.s
 nachos-4.0/code/*/core
 nachos-4.0/code/*/core.*

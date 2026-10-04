@@ -19,13 +19,13 @@
 
 
 # if you aren't cross-compiling:
-GCCDIR =
-LDFLAGS = -N -T 0
+GCCDIR = ../../../mips-x86.linux-xgcc/
+LDFLAGS = -N -Ttext 0 -e __start
 ASFLAGS =
 CPPFLAGS = -P $(INCDIR)
 
 
-CC = $(GCCDIR)gcc
+CC = $(GCCDIR)gcc -B$(GCCDIR)
 AS = $(GCCDIR)as
 LD = $(GCCDIR)ld
 
@@ -33,7 +33,18 @@ CPP = /lib/cpp
 INCDIR =-I../userprog -I../threads -I../lib
 CFLAGS = -G 0 -c $(INCDIR)
 
-all: halt shell matmult sort
+all: halt shell matmult sort printint.noff
+
+../bin/coff2noff:
+	$(MAKE) -C ../bin coff2noff
+
+# Any test/foo.c can be built with: make foo.noff
+%.o: %.c ../userprog/syscall.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%.noff: %.o start.o ../bin/coff2noff
+	$(LD) $(LDFLAGS) start.o $< -o $*.coff
+	../bin/coff2noff $*.coff $@
 
 start.o: start.s ../userprog/syscall.h
 	$(CPP) $(CPPFLAGS) start.s > strt.s
