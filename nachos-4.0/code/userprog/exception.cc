@@ -246,6 +246,25 @@ ExceptionHandler(ExceptionType which)
 			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
 			return;
 		}
+		case SC_Close: {
+			int id = kernel->machine->ReadRegister(4);
+			int result = 0;
+
+			if (id >= 2 && id < MaxOpenFiles && openFiles[id] != NULL) {
+				OpenFile *file = openFiles[id];
+				openFiles[id] = NULL;
+				delete file;
+				result = 1;
+			}
+
+			kernel->machine->WriteRegister(2, result);
+			int pc = kernel->machine->ReadRegister(PCReg);
+			int nextPC = kernel->machine->ReadRegister(NextPCReg);
+			kernel->machine->WriteRegister(PrevPCReg, pc);
+			kernel->machine->WriteRegister(PCReg, nextPC);
+			kernel->machine->WriteRegister(NextPCReg, nextPC + 4);
+			return;
+		}
 		default:
 			cerr << "Unexpected system call " << type << "\n";
 			break;

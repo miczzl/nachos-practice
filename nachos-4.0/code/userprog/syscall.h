@@ -106,8 +106,12 @@ int Write(char *buffer, int size, OpenFileId id);
  */
 int Read(char *buffer, int size, OpenFileId id);
 
-/* Close the file, we're done reading and writing to it. */
-void Close(OpenFileId id);
+/* Close an open file: return 1 on success, 0 for an invalid id. */
+/* The kernel's host-file wrapper also has a Close(int), so only user
+ * programs need this system-call declaration. */
+#ifndef USER_PROGRAM
+int Close(OpenFileId id);
+#endif
 
 
 
