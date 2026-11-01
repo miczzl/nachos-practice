@@ -20,17 +20,16 @@ UserProgKernel::UserProgKernel(int argc, char **argv)
 		: ThreadedKernel(argc, argv)
 {
     debugUserProg = FALSE;
-    userProgram = NULL;
     consoleInput = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-s") == 0) {
-	    debugUserProg = TRUE;
-	} else if (strcmp(argv[i], "-e") == 0) {
-	    ASSERT(i + 1 < argc);
-	    userProgram = argv[++i];
-	} else if (strcmp(argv[i], "-u") == 0) {
-            cout << "Partial usage: nachos [-s] [-e userProgram]\n";
-	}
+            debugUserProg = TRUE;
+        } else if (strcmp(argv[i], "-e") == 0) {
+            ASSERT(i + 1 < argc);
+            userPrograms.push_back(argv[++i]);
+        } else if (strcmp(argv[i], "-u") == 0) {
+            cout << "Partial usage: nachos [-s] [-e userProgram]...\n";
+        }
     }
 }
 
@@ -45,6 +44,7 @@ UserProgKernel::Initialize()
     ThreadedKernel::Initialize();	// init multithreading
 
     machine = new Machine(debugUserProg);
+    physicalPageMap = new Bitmap(NumPhysPages);
     fileSystem = new FileSystem();
 }
 
@@ -59,20 +59,38 @@ UserProgKernel::~UserProgKernel()
     delete consoleInput;
     delete fileSystem;
     delete machine;
+    delete physicalPageMap;
+}
+
+static void RunUserProgram(void *arg)
+{
+    char *fileName = (char *)arg;
+    AddrSpace *space = new AddrSpace();
+
+    space->Execute(fileName);
+
+    // Only a failed load returns here; Exit frees successful address spaces.
+    delete space;
 }
 
 //----------------------------------------------------------------------
 // UserProgKernel::Run
-// 	Run the selected user program, or "halt" by default.
+// 	Queue one thread per -e argument, or a halt program if none are given.
 //----------------------------------------------------------------------
 
 void
 UserProgKernel::Run()
 {
-    AddrSpace *space = new AddrSpace();
+    if (userPrograms.empty()) {
+        userPrograms.push_back((char *)"../test/halt");
+    }
 
-    space->Execute(userProgram != NULL ? userProgram : (char *)"../test/halt");
+    for (unsigned int i = 0; i < userPrograms.size(); i++) {
+        Thread *t = new Thread(userPrograms[i]);
+        t->Fork(RunUserProgram, userPrograms[i]);
+    }
 
+    // Finish the startup thread instead of returning from the host main().
     ThreadedKernel::Run();
 }
 
@@ -85,8 +103,8 @@ void
 UserProgKernel::SelfTest() {
     char ch;
 
-    // Run a selected test program directly, without the interactive self test.
-    if (userProgram != NULL)
+    // Batch execution must not wait for input in the interactive self-test.
+    if (!userPrograms.empty())
 	return;
 
     ThreadedKernel::SelfTest();

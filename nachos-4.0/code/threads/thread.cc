@@ -101,10 +101,9 @@ Thread::Fork(VoidFunctionPtr func, void *arg)
     
     StackAllocate(func, arg);
 
-    oldLevel = interrupt->SetLevel(IntOff);
-    scheduler->ReadyToRun(this);	// ReadyToRun assumes that interrupts 
-					// are disabled!
-    (void) interrupt->SetLevel(oldLevel);
+    oldLevel = interrupt->SetLevel(IntOff); // disable interrupts for atomicity
+    scheduler->ReadyToRun(this);	// ReadyToRun assumes that interrupts are disabled!
+    (void) interrupt->SetLevel(oldLevel); // restore the caller's interrupt level
 }    
 
 //----------------------------------------------------------------------

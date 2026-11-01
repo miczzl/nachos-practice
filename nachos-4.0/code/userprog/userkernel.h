@@ -15,6 +15,8 @@
 #include "kernel.h"
 #include "filesys.h"
 #include "machine.h"
+#include "bitmap.h"
+#include <vector>
 
 class SynchConsoleInput;
 
@@ -26,18 +28,19 @@ class UserProgKernel : public ThreadedKernel {
 
     void Initialize();		// initialize the kernel 
 
-    void Run();			// do kernel stuff 
+    void Run();			// Start one thread per selected user program
 
     void SelfTest();		// test whether kernel is working
 
 // These are public for notational convenience.
     Machine *machine;
+    Bitmap *physicalPageMap; // Shared frame allocation map; a set bit means in use
     FileSystem *fileSystem;
     SynchConsoleInput *consoleInput;
 
   private:
     bool debugUserProg;		// single step user program
-    char *userProgram;		// optional program selected with -e
+    std::vector<char *> userPrograms;		// Borrowed argv filenames, one per -e
 };
 
 #endif

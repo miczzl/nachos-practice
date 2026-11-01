@@ -4,8 +4,7 @@
 //	transfer back to here from user code:
 //
 //	syscall -- The user code explicitly requests to call a procedure
-//	in the Nachos kernel.  Right now, the only function we support is
-//	"Halt".
+//	in the Nachos kernel, such as Exit, PrintInt, or file I/O.
 //
 //	exceptions -- The user code does something that the CPU can't handle.
 //	For instance, accessing memory that doesn't exist, arithmetic errors,
@@ -14,8 +13,7 @@
 //	Interrupts (which can also cause control to transfer from user
 //	code into the Nachos kernel) are handled elsewhere.
 //
-// For now, this only handles the Halt() system call.
-// Everything else core dumps.
+// Unsupported syscalls and user exceptions reach ASSERTNOTREACHED().
 //
 // Copyright (c) 1992-1996 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
@@ -27,6 +25,7 @@
 #include "syscall.h"
 
 // 0 and 1 are reserved for console input and output.
+// This MP1 file-handle table is kernel-wide, not per address space.
 static const int MaxOpenFiles = 32;
 static OpenFile *openFiles[MaxOpenFiles] = {NULL};
 
@@ -66,8 +65,8 @@ CopyUserString(int userAddress, char *destination, int maxLength)
 //
 //	The result of the system call, if any, must be put back into r2. 
 //
-// And don't forget to increment the pc before returning. (Or else you'll
-// loop making the same system call forever!
+// Returning syscalls advance the PC so they do not execute again.
+// Halt and Exit do not return to user code.
 //
 //	"which" is the kind of exception.  The list of possible exceptions 
 //	are in machine.h.
@@ -85,6 +84,16 @@ ExceptionHandler(ExceptionType which)
 			DEBUG(dbgAddr, "Shutdown, initiated by user program.\n");
 			kernel->interrupt->Halt();
 			break;
+		case SC_Exit: {
+			AddrSpace *space = kernel->currentThread->space;
+			// The scheduler must not save state through a freed address space.
+			kernel->currentThread->space = NULL;
+
+			delete space;
+
+			kernel->currentThread->Finish();
+			break;
+		}
 		case SC_PrintInt: {
 			int number = kernel->machine->ReadRegister(4);
 			// negative number handling 

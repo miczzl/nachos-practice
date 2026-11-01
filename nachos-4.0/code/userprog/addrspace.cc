@@ -46,35 +46,30 @@ SwapHeader (NoffHeader *noffH)
 //----------------------------------------------------------------------
 // AddrSpace::AddrSpace
 // 	Create an address space to run a user program.
-//	Set up the translation from program memory to physical 
-//	memory.  For now, this is really simple (1:1), since we are
-//	only uniprogramming, and we have a single unsegmented page table
+//	Defer page allocation until Load() knows the program size.
 //----------------------------------------------------------------------
 
 AddrSpace::AddrSpace()
 {
-    pageTable = new TranslationEntry[NumPhysPages];
-    for (int i = 0; i < NumPhysPages; i++) {
-	pageTable[i].virtualPage = i;	// for now, virt page # = phys page #
-	pageTable[i].physicalPage = i;
-	pageTable[i].valid = TRUE;
-	pageTable[i].use = FALSE;
-	pageTable[i].dirty = FALSE;
-	pageTable[i].readOnly = FALSE;  
-    }
-    
-    // zero out the entire address space
-    bzero(kernel->machine->mainMemory, MemorySize);
+    pageTable = NULL;
+    numPages = 0;
 }
 
 //----------------------------------------------------------------------
 // AddrSpace::~AddrSpace
-// 	Dealloate an address space.
+// 	Release the owned physical frames and page table.
 //----------------------------------------------------------------------
 
 AddrSpace::~AddrSpace()
 {
-   delete pageTable;
+    if (pageTable != NULL) {
+        for (unsigned int i = 0; i < numPages; i++) {
+            kernel->physicalPageMap->Clear(pageTable[i].physicalPage);
+        }
+        DEBUG(dbgAddr, "Released " << numPages << " frames; free frames: "
+              << kernel->physicalPageMap->NumClear());
+    }
+    delete[] pageTable;
 }
 
 
@@ -82,8 +77,7 @@ AddrSpace::~AddrSpace()
 // AddrSpace::Load
 // 	Load a user program into memory from a file.
 //
-//	Assumes that the page table has been initialized, and that
-//	the object code file is in NOFF format.
+//	Allocate physical frames, build the page table, and load NOFF segments.
 //
 //	"fileName" is the file containing the object code to load into memory
 //----------------------------------------------------------------------
@@ -106,44 +100,88 @@ AddrSpace::Load(char *fileName)
     	SwapHeader(&noffH);
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
-// how big is address space?
+    // how big is address space?
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size 
 			+ UserStackSize;	// we need to increase the size
 						// to leave room for the stack
     numPages = divRoundUp(size, PageSize);
     size = numPages * PageSize;
 
-    ASSERT(numPages <= NumPhysPages);		// check we're not trying
-						// to run anything too big --
-						// at least until we have
-						// virtual memory
-
+    if (numPages > kernel->physicalPageMap->NumClear()) {
+        cerr << "Not enough free physical frames.\n";
+        delete executable;
+        return FALSE;
+    }
     DEBUG(dbgAddr, "Initializing address space: " << numPages << ", " << size);
 
-// then, copy in the code and data segments into memory
+    pageTable = new TranslationEntry[numPages];
+    for (unsigned int i = 0; i < numPages; i++) {
+        int frame = kernel->physicalPageMap->FindAndSet();
+        ASSERT(frame >= 0);
+
+        pageTable[i].virtualPage = i;
+        pageTable[i].physicalPage = frame;
+        pageTable[i].valid = TRUE;
+        pageTable[i].use = FALSE;
+        pageTable[i].dirty = FALSE;
+        pageTable[i].readOnly = FALSE;
+
+        // Other programs may own the remaining physical memory.
+        bzero(&(kernel->machine->mainMemory[frame * PageSize]), PageSize);
+    }
+    DEBUG(dbgAddr, "Allocated " << numPages << " frames; free frames: "
+          << kernel->physicalPageMap->NumClear());
+
+    // then, copy in the code and data segments into memory
     if (noffH.code.size > 0) {
         DEBUG(dbgAddr, "Initializing code segment.");
-	DEBUG(dbgAddr, noffH.code.virtualAddr << ", " << noffH.code.size);
-        executable->ReadAt(
-		&(kernel->machine->mainMemory[noffH.code.virtualAddr]), 
-			noffH.code.size, noffH.code.inFileAddr);
+        DEBUG(dbgAddr, noffH.code.virtualAddr << ", " << noffH.code.size);
+
+        LoadSegment(executable, noffH.code.virtualAddr,
+                    noffH.code.inFileAddr, noffH.code.size);
     }
     if (noffH.initData.size > 0) {
         DEBUG(dbgAddr, "Initializing data segment.");
 	DEBUG(dbgAddr, noffH.initData.virtualAddr << ", " << noffH.initData.size);
-        executable->ReadAt(
-		&(kernel->machine->mainMemory[noffH.initData.virtualAddr]),
-			noffH.initData.size, noffH.initData.inFileAddr);
+        LoadSegment(executable, noffH.initData.virtualAddr,
+                    noffH.initData.inFileAddr, noffH.initData.size);
     }
 
     delete executable;			// close file
     return TRUE;			// success
 }
 
+void
+AddrSpace::LoadSegment(OpenFile *executable, unsigned int virtualAddr,
+                       unsigned int fileOffset, unsigned int remaining)
+{
+    while (remaining > 0) {
+        unsigned int vpn = virtualAddr / PageSize;
+        unsigned int offset = virtualAddr % PageSize;
+        ASSERT(vpn < numPages);
+
+        // The next virtual page may map to a nonadjacent physical frame.
+        unsigned int chunk = PageSize - offset;
+        if (chunk > remaining) {
+            chunk = remaining;
+        }
+
+        unsigned int physicalAddr =
+            pageTable[vpn].physicalPage * PageSize + offset;
+        int bytesRead = executable->ReadAt(
+            &kernel->machine->mainMemory[physicalAddr], chunk, fileOffset);
+        ASSERT(bytesRead == (int)chunk);
+
+        virtualAddr += chunk;
+        fileOffset += chunk;
+        remaining -= chunk;
+    }
+}
+
 //----------------------------------------------------------------------
 // AddrSpace::Execute
 // 	Run a user program.  Load the executable into memory, then
-//	(for now) use our own thread to run it.
+//	Use the calling thread to run it until Exit or a machine-wide Halt.
 //
 //	"fileName" is the file containing the object code to load into memory
 //----------------------------------------------------------------------
@@ -152,7 +190,7 @@ void
 AddrSpace::Execute(char *fileName) 
 {
     if (!Load(fileName)) {
-	return;				// executable not found
+	return;				// Missing executable or insufficient free frames
     }
 
     kernel->currentThread->space = this;
@@ -160,11 +198,10 @@ AddrSpace::Execute(char *fileName)
     this->InitRegisters();		// set the initial register values
     this->RestoreState();		// load page table register
 
-    kernel->machine->Run();		// jump to the user progam
+    kernel->machine->Run();		// jump to the user program
 
     ASSERTNOTREACHED();			// machine->Run never returns;
-					// the address space exits
-					// by doing the syscall "exit"
+					// Exit finishes the thread; Halt stops Nachos
 }
 
 
@@ -206,7 +243,7 @@ AddrSpace::InitRegisters()
 // 	On a context switch, save any machine state, specific
 //	to this address space, that needs saving.
 //
-//	For now, don't need to save anything!
+//	The page table remains in this object; Thread saves user registers.
 //----------------------------------------------------------------------
 
 void AddrSpace::SaveState() 
@@ -217,7 +254,7 @@ void AddrSpace::SaveState()
 // 	On a context switch, restore the machine state so that
 //	this address space can run.
 //
-//      For now, tell the machine where to find the page table.
+//      Install this program's mapping in the shared simulated machine.
 //----------------------------------------------------------------------
 
 void AddrSpace::RestoreState() 

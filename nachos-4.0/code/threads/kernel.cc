@@ -79,9 +79,7 @@ ThreadedKernel::~ThreadedKernel()
 
 //----------------------------------------------------------------------
 // ThreadedKernel::Run
-// 	Run the Nachos kernel.  For now, do nothing. In practice,
-//	after initializing data structures, the kernel would
-//	start a user program to print the login prompt.
+// 	Finish the startup thread so the scheduler can run queued threads.
 //----------------------------------------------------------------------
 
 void
@@ -89,7 +87,7 @@ ThreadedKernel::Run()
 {
     // NOTE: if the procedure "main" returns, then the program "nachos"
     // will exit (as any other normal program would).  But there may be
-    // other threads on the ready list (started in SelfTest).  
+    // other threads on the ready list (started by Run or SelfTest).
     // We switch to those threads by saying that the "main" thread 
     // is finished, preventing it from returning.
     currentThread->Finish();	

@@ -15,10 +15,14 @@ make
 ```
 
 For the current `PrintInt` test, replace `foo` with `printint`. The first
-build also builds `../bin/coff2noff`. `-e` selects the user program and skips
-NachOS's interactive console self-test. Without `-e`, NachOS keeps its
-original behavior of running `../test/halt`.
+build also builds `../bin/coff2noff`. Each `-e` selects another user program;
+all selected programs get their own NachOS thread and address space.
+Specifying `-e` skips the interactive console self-test. Without `-e`,
+NachOS runs the interactive self-tests before starting `../test/halt`.
 
-The test program should call `Halt()` when done; this starter kernel does not
-yet implement the `Exit` system call. Test outputs (`*.o`, `*.coff`, and
-`*.noff`) are ignored by Git.
+Use `Exit(status)` or return from `main()` to end one program and release its
+frames. `Halt()` stops the whole simulated machine, including other programs.
+Test outputs (`*.o`, `*.coff`, and `*.noff`) are ignored by Git.
+
+For the MP2 tests, trace, and implementation notes, see
+[the MP2 report](../../../docs/MP2.md).
